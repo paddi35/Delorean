@@ -19,6 +19,9 @@ import random
 import sys
 import os
 
+def debug_wr(str):
+    if True:
+        print(str)
 
 def banner():
     print('                                    _._                                          ')
@@ -32,6 +35,7 @@ def banner():
     print('  V__________: \        / :_|=======================/_____: \        / :__-"     ')
     print('  -----------\'  ""____""  `-------------------------------\'  ""____""            ')
 
+debug_wr("define NTProxy class")
 
 # NTP-Proxy Class
 class NTProxy(threading.Thread):
@@ -146,23 +150,32 @@ class NTProxy(threading.Thread):
 
     # Run Method
     def run(self):
+        debug_wr("run NTPProxy")
         self.select_step()
         while not self.stopF:
+            debug_wr("run in loop...")
             # When timeout we need to catch the exception
             try:
+                debug_wr("get data from socket...")
                 data, source = self.socket.recvfrom(1024)
+                debug_wr("extract data...")
                 info = self.extract(data)
                 timestamp = self.newtime(info["tx_timestamp"] - self.ntp_delta)
+                debug_wr("get response...")
                 fingerprint, data = self.response(info, timestamp)
                 if self.skim_step != 0:
                     for t in range(0, 10):
                         fingerprint, data = self.response(info, timestamp)
+                debug_wr("send data to socket")
                 socket.sendto(data, source)
+
+                debug_wr("only print if its the first packet...")
                 # Only print if it's the first packet
                 epoch_now = time.time()
                 if (not source[0] in self.seen) or (
                     (source[0] in self.seen) and (epoch_now - self.seen[source[0]]) > 2
                 ):
+                    debug_wr("calculate something to display")
                     if self.forced_random:
                         self.select_step()
                     self.seen[source[0]] = epoch_now
@@ -202,7 +215,8 @@ class NTProxy(threading.Thread):
                             future_time,
                         )
                     )
-            except:
+            except Exception as e:
+                debug_wr("exception: ", e, " continue anyways")
                 continue
 
     # Extract query information
@@ -231,6 +245,7 @@ class NTProxy(threading.Thread):
         info["tx_timestamp_high"]   = unpacked[13]
         info["tx_timestamp_low"]    = unpacked[14]
         # Return useful info for respose
+        debug_wr("extracted info: ", info)
         return info
 
     # Create response packet
@@ -338,10 +353,15 @@ class NTProxy(threading.Thread):
         # int(abs(timestamp - int(timestamp)) * 2**32)
         return packed
 
+debug_wr("NTProxy class defined")
+
+debug_wr("start")
 
 # Usage and options
 usage = "usage: %prog [options]"
 parser = OptionParser(usage=usage)
+debug_wr("created parser")
+
 parser.add_option(
     "-i",
     "--interface",
@@ -398,12 +418,15 @@ parser.add_option(
     default=False,
     help="Use random date each time",
 )
+debug_wr("parser options added")
+
 (options, args) = parser.parse_args()
 ifre = re.compile("[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+")
 fsre = re.compile("[-]?[0-9]+[smhdwMy]?")
 fdre = re.compile(
     "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9](:[0-9][0-9])?"
 )
+debug_wr("check options")
 # Check options
 if (
     not options.interface
@@ -422,17 +445,23 @@ if (
     parser.print_help()
     exit()
 
+debug_wr("check if root")
+
 # Check if root
 if options.port <= 1024 and os.geteuid() != 0:
     sys.exit("Delorean must be run as root when binding ports under 1024")
 
+debug_wr("bind socket and start thread")
+
 # Bind Socket and Start Thread
 socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 socket.bind((options.interface, options.port))
+
 NTP_Thread = NTProxy(socket)
 if options.random:
     NTP_Thread.force_random(True)
 else:
+    debug_wr("ntp_thread set skip treshold")
     NTP_Thread.set_skim_threshold(options.threshold)
     if options.skim:
         NTP_Thread.set_skim_step(options.skim)
@@ -445,6 +474,7 @@ else:
 if options.banner:
     banner()
 
+debug_wr("wait until keyboard interrupt")
 # Wait until Keyboard Interrupt
 try:
     NTP_Thread.start()
